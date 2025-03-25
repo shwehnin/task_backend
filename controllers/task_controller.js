@@ -101,4 +101,5 @@ let getTaskDetail = async(req, res, next) => {
     }
 }
 
+
 module.exports = {addTask, updateTask, deleteTask, getAllTasks, getTaskDetail}
