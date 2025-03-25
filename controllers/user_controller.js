@@ -3,7 +3,7 @@ const { User } = require("../models/user_model");
 
 let getUsers = async(req, res, next) => {
     try{
-        const users = await User.find().select('-__v');
+        const users = await User.find().select('-__v -passwordHash');
         if(!users) {
             throwError({message: "No users found"});
         }
