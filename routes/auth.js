@@ -18,21 +18,15 @@ const validateUser = [
     ),
 ];
 
-const validatePassword = [
-    body("newPassword").isLength({min:8})
-    .withMessage("Password must be at least 8 characters")
-      .isStrongPassword()
-      .withMessage(
-        "Password must contain at least one uppercase, one lowercase and one symbol"
-      )
+const validateUserLogin = [
+  body("email").not().isEmpty().withMessage("Email is required"),
+  body("password").not().isEmpty().withMessage("Password is required")
+
 ];
 
 router.post("/register", validateUser, authController.register);
-router.post("/login", authController.login);
-router.post("/verify-token", authController.verifyToken);
-router.post("/forgot-password", authController.forgotPassword);
-router.post("/verify-reset-otp", authController.verifyPasswordResetOTP);
-router.post("/reset-password", validatePassword, authController.resetPassword);
+router.post("/login", validateUserLogin, authController.login);
+router.post("/refresh-token", authController.refreshAccessToken);
 router.post("/logout", authController.logout);
 router.get("/user", authController.getUser);
 

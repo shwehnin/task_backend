@@ -15,7 +15,6 @@ let register = async(req, res, next) => {
                 message: e.msg,
             }));
             return res.status(400).json({ errors: errorMessages });
-            // throwError({message: errorMessages.map((e) => e.message) , status: 400});
         }
         // check email if exist or not
         let {email} = req.body;
@@ -31,7 +30,11 @@ let register = async(req, res, next) => {
         if(!user) {
             throwError({message: "Could not create a new user", status: 500});
         }
-        success(res, {status: 201, message: "Register successfully!", data: user});
+        const createdData = await User.findById(user._id);
+        let userObj = createdData.toObject();
+        delete userObj.passwordHash;
+
+        success(res, {status: 201, message: "Register successfully!", data: userObj});
     }catch(e) {
         next(e);
     }
@@ -39,12 +42,22 @@ let register = async(req, res, next) => {
 
 let login = async(req, res, next) => {
     try{
+        // check validation for required fields
+        const errors = validationResult(req);
+        if(!errors.isEmpty()) {
+            const errorMessages = errors.array().map((e) => ({
+                field: e.path,
+                message: e.msg,
+            }));
+            return res.status(400).json({ errors: errorMessages });
+        }
+
         const {email, password} = req.body;
         const user = await User.findOne({email});
         if(!user) {
             throwError({message: `User doesn't exists!`, status: 404});
         }
-
+        
         // compare password
         if(!bcrypt.compareSync(password, user.passwordHash)) {
             throwError({message: "Incorrect password!", status: 400});
@@ -67,128 +80,56 @@ let login = async(req, res, next) => {
         if(token) await token.deleteOne();
         await Token({userId: user.id, accessToken, refreshToken}).save();
         user.passwordHash = undefined;
-        // success(res, {message: "User login successfully!", status: 201});
-        return res.json({...user._doc, accessToken});
+        success(res, {message: "User login successfully!", status: 200, data: {user: {...user._doc}, accessToken, refreshToken}});
     }catch(e) {
-        console.log(`Type e ${e.name} and ${e.message}`);
         next(e);
     }
 }
 
-let verifyToken = async(req, res, next) => {
-    try{
-        let accessToken = req.headers.authorization;
-        if(!accessToken) return res.json(false);
-        accessToken = accessToken.replace("Bearer", "").trim();
+let refreshAccessToken = async (req, res, next) => {
+    try {
+        const { refreshToken } = req.body;
 
-        const token = await Token.findOne({accessToken});
-        if(!token) return res.json(false);
+        // Check if refreshToken is provided
+        if (!refreshToken) {
+            return res.status(401).json({ message: "No refresh token provided" });
+        }
 
-        const tokenData = jwt.decode(token.refreshToken);
+        // Check if refreshToken exists in the database
+        const tokenData = await Token.findOne({ refreshToken });
+        if (!tokenData) {
+            return res.status(403).json({ message: "Invalid refresh token" });
+        }
 
-        const user = await User.findOne(tokenData.id);
-        if(!user) return res.json(false);
+        // Verify the refresh token
+        const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
 
-        const isValid = jwt.verify(
-            token.refreshToken,
-            process.env.REFRESH_TOKEN_SECRET
+        // Find the user associated with the token
+        const user = await User.findById(decoded.id);
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        // Generate a new access token
+        const newAccessToken = jwt.sign(
+            { id: user._id },
+            process.env.ACCESS_TOKEN_SECRET,
+            { expiresIn: "24h" } // Token valid for 24 hours
         );
 
-        if(!isValid) return res.json(false);
+        // Update token in the database
+        tokenData.accessToken = newAccessToken;
+        await tokenData.save();
 
-        return res.json(true);
-    }catch(e) {
-        next();
-    }
-}
-
-let forgotPassword = async(req, res, next) => {
-    try{
-        let {phone} = req.body;
-
-        if(!phone) {
-            throwError({message: "Phone number is required!", status: 400});
-        }
-
-        if(!phone.startsWith("+")) {
-            phone = "+66" + phone.replace('/^0+/', "");
-        }
-
-        const user = await User.findOne({phone});
-
-        if(!user) {
-            throwError({message: "User with that phone number doesn't exist!", status: 404});
-        }
-
-        const otp = Math.floor(1000 + Math.random() * 9000);
-        user.resetPasswordOtp = otp;
-        user.resetPasswordOtpExpires = Date.now() + 600000;
-        await user.save();
-        console.log("Sending phone to:", phone);
-        const response = await client.messages.create({
-            body: `Your OTP for password reset is: ${otp}`,
-            to: phone,
-            from: TWILIO_PHONE_NUMBER,
+        return res.status(200).json({
+            accessToken: newAccessToken,
+            message: "Access token refreshed successfully"
         });
 
-        success(res, {status: 201, message: 'OTP sent successfully', data: response});
-    }catch(e) {
-        console.log("Error is"+ e);
-        next(e);
+    } catch (e) {
+        return res.status(500).json({ message: "Internal server error" });
     }
-}
-
-let verifyPasswordResetOTP = async(req, res, next) => {
-    try{
-        const {phone, otp} = req.body;
-        const user = await User.findOne({phone});
-
-        if(!user) {
-            throwError({message: "User not found!", status: 404});
-        }
-
-        if(user.resetPasswordOtp !== +otp || Date.now() > user.resetPasswordOtpExpires) {
-            throwError({message: "Invalid or expired OTP", status: 401});
-        }
-
-        user.resetPasswordOtp = 1;
-        user.resetPasswordOtpExpires = undefined;
-        await user.save();
-        success(res, {status: 201, message: "OTP confirmed successfully", data: null});
-    }catch(e) {
-        next(e);
-    }
-}
-
-let resetPassword = async(req, res, next) => {
-    const errors = validationResult(req);
-        if(!errors.isEmpty()) {
-            const errorMessages = errors.array().map((e) => ({
-                field: e.path,
-                message: e.msg,
-            }));
-            return res.status(400).json({ errors: errorMessages });
-        }
-    try{
-        const {phone, newPassword} = req.body;
-        const user = await User.findOne({phone});
-
-        if(!user) {
-            throwError({message: "User not found!", status: 404});
-        }
-
-        if(user.resetPasswordOtp != 1) {
-            throwError({message: "Confirm OTP before resetting password!", status: 401});
-        }
-
-        user.passwordHash = bcrypt.hashSync(newPassword, 8);
-        user.resetPasswordOtp = undefined;
-        await user.save();
-        success(res, {message: "Password reset successfully!", status: 201, data: null});
-    }catch(e) {
-        next(e);
-    }
-}
+};
 
 let getUser = async (req, res, next) => {
     try {
@@ -246,4 +187,4 @@ let logout = async(req, res, next) => {
     }
 }
 
-module.exports = {register, login, verifyToken, forgotPassword, verifyPasswordResetOTP, resetPassword, logout, getUser}
+module.exports = {register, login, refreshAccessToken, logout, getUser}

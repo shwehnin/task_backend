@@ -11,9 +11,6 @@ function authJwt() {
         path: [
             `${API}/login`,
             `${API}/register`,
-            `${API}/forgot-password`,
-            `${API}/verify-reset-otp`,
-            `${API}/reset-password`,
         ]
     });
 }

@@ -6,6 +6,7 @@ const router = express.Router();
 
 const validateTask = [
     body("title").not().isEmpty().withMessage("Title is required"),
+    body("priority").not().isEmpty().withMessage("Priority is required"),
     body("startDate").not().isEmpty().withMessage("Start date is required")
         .isISO8601().toDate().withMessage("Invalid start date"),
     body("endDate").not().isEmpty().withMessage("End date is required")

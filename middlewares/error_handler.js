@@ -12,11 +12,11 @@ async function errorHandler(error, req, res, next) {
       const accessToken = tokenHeader.split(" ")[1];
       const token = await Token.findOne({
         accessToken,
-        refreshToken: { $exits: true },
+        refreshToken: { $exists: true },
       });
 
       if (!token) {
-        throwError({ message: "Token does not exist", status: 401 });
+        throwError({ message: "Token does not exist or Expired", status: 401 });
       }
 
       const userData = jwt.verify(
@@ -31,9 +31,9 @@ async function errorHandler(error, req, res, next) {
       }
 
       const newAccessToken = jwt.sign(
-        { id: user.id, isAdmin: user.isAdmin },
+        { id: user.id },
         process.env.ACCESS_TOKEN_SECRET,
-        { expiresInd: "24h" }
+        { expiresIn: "24h" }
       );
 
       req.headers["authorization"] = `Bearer ${newAccessToken}`;

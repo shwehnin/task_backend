@@ -14,7 +14,6 @@ db.connect();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// local development 
 app.use(cors());
 app.options("*", cors());
 

@@ -2,6 +2,7 @@ const { validationResult } = require("express-validator");
 const { throwError, success } = require("../helpers/response");
 const { Task } = require("../models/task_model");
 const { default: mongoose } = require("mongoose");
+const jwt  = require("jsonwebtoken");
 
 let addTask = async(req, res, next) => {
     try{
@@ -23,7 +24,7 @@ let addTask = async(req, res, next) => {
         }
 
         // store the data into the database
-        let task = Task(req.body);
+        let task = new Task({...req.body});
         await task.save();
         success(res, { message: `${title} created successfully`, status: 201 });
     }catch(e) {
@@ -72,10 +73,11 @@ let deleteTask = async(req, res, next) => {
 
 let getAllTasks = async(req, res) => {
     try{
-        //get all task expect createdAt, updatedAt and version
-        const tasks = await Task.find().select("-createdAt -updatedAt -__v").sort({createdAt: -1});
+        const tasks = await Task.find()
+        .select("-createdAt -updatedAt -__v").sort({createdAt: -1});
+
         // response success
-        success(res, {status: 200, message: "Task List", data: tasks});
+        success(res, {status: 200, message: "Task List", data: {tasks}});
     }catch(e) {
         next(e);
     }
