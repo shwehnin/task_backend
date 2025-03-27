@@ -18,6 +18,8 @@ The backend of the **Task Management App** is built using **Node.js** and **Expr
 - **Backend**: Node.js, Express.js
 - **Database**: MongoDB (with Mongoose)
 - **Authentication**: JWT (JSON Web Token)
+
+## 🔗 ER Diagram
 [![ERDiagram PDF Preview](./db/erdiagram_task.pdf)](./db/erdiagram_task.pdf)
 
 ## Installation
